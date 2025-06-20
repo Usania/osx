@@ -31,4 +31,4 @@ brew install --cask ngrok
 
 #configure ngrok and start it
 ngrok authtoken $3
-ngrok tcp 3389 --region=au &
+ngrok tcp 22 --region=au &
