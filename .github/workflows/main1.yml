@@ -7,39 +7,40 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - name: Keep session awake
+      - name: Prevent sleep
         run: caffeinate -dims &
 
-      - name: Enable screen sharing (VNC)
+      - name: Enable Screen Sharing (VNC)
         run: |
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on -privs -all -restart -agent -console
 
-      - name: Hide Dock and menu bar
+      - name: Hide Dock and Menu Bar
         run: |
           defaults write com.apple.dock autohide -bool true
           defaults write NSGlobalDomain _HIHideMenuBar -bool true
           killall Dock || true
 
-      - name: Install Chrome (via Homebrew)
+      - name: Install Google Chrome
         run: |
           brew install --cask google-chrome
 
-      - name: Install ngrok
+      - name: Install and Start ngrok
         run: |
           brew install --no-quarantine ngrok
           mkdir -p ~/.ngrok2
           echo "authtoken: ${{ secrets.NGROK_AUTH_TOKEN }}" > ~/.ngrok2/ngrok.yml
 
-      - name: Start ngrok tunnel
-        run: |
-          nohup ngrok tcp 5900 > ngrok.log 2>&1 &
-          sleep 6
-          cat ngrok.log | grep -E "tcp://"
+          echo "Starting ngrok..."
+          nohup $(brew --prefix)/bin/ngrok tcp 5900 > ngrok.log 2>&1 &
 
-      - name: Launch Chrome in kiosk mode
+          sleep 8
+          echo "Ngrok tunnel URL:"
+          grep -Eo 'tcp://[0-9a-zA-Z\.\:]*' ngrok.log || echo "❌ Ngrok URL not found"
+
+      - name: Launch Chrome in Kiosk Mode
         run: |
           open -a "Google Chrome" --args --kiosk https://www.google.com
 
-      - name: Keep session alive for 10 minutes
-        run: sleep 600000000
+      - name: Keep runner alive (ngrok + VNC)
+        run: tail -f /dev/null
