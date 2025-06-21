@@ -25,22 +25,23 @@ jobs:
         run: |
           brew install --cask google-chrome
 
-      - name: Install and Start ngrok
+      - name: Install and start ngrok
         run: |
           brew install --no-quarantine ngrok
           mkdir -p ~/.ngrok2
           echo "authtoken: ${{ secrets.NGROK_AUTH_TOKEN }}" > ~/.ngrok2/ngrok.yml
 
           echo "Starting ngrok..."
-          nohup $(brew --prefix)/bin/ngrok tcp 5900 > ngrok.log 2>&1 &
+          $(brew --prefix)/bin/ngrok tcp 5900 > ngrok.log 2>&1 &
 
-          sleep 8
-          echo "Ngrok tunnel URL:"
-          grep -Eo 'tcp://[0-9a-zA-Z\.\:]*' ngrok.log || echo "❌ Ngrok URL not found"
+          sleep 5
+          echo "Ngrok logs:"
+          tail -f ngrok.log
 
-      - name: Launch Chrome in Kiosk Mode
+      - name: Launch Chrome in kiosk mode
         run: |
           open -a "Google Chrome" --args --kiosk https://www.google.com
 
-      - name: Keep runner alive (ngrok + VNC)
+      - name: Keep runner alive (no-op)
         run: tail -f /dev/null
+
