@@ -1,47 +1,48 @@
-name: macOS Chrome VNC
+name: Linux Chrome VNC with macOS User Agent
 
 on: [workflow_dispatch]
 
 jobs:
-  chrome-vnc:
-    runs-on: macos-latest
+  vnc-chrome:
+    runs-on: ubuntu-latest
 
     steps:
-      - name: Prevent sleep
-        run: caffeinate -dims &
-
-      - name: Enable Screen Sharing (VNC)
+      - name: Install dependencies
         run: |
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-            -activate -configure -access -on -privs -all -restart -agent -console
+          sudo apt update
+          sudo apt install -y xvfb x11vnc fluxbox wget unzip
 
-      - name: Hide Dock and Menu Bar
+      - name: Install Chrome
         run: |
-          defaults write com.apple.dock autohide -bool true
-          defaults write NSGlobalDomain _HIHideMenuBar -bool true
-          killall Dock || true
+          wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb
+          sudo dpkg -i google-chrome-stable_current_amd64.deb || sudo apt-get -f install -y
 
-      - name: Install Google Chrome
+      - name: Start Xvfb and window manager
         run: |
-          brew install --cask google-chrome
+          Xvfb :99 -screen 0 1280x720x24 &
+          export DISPLAY=:99
+          fluxbox &
 
-      - name: Install and start ngrok
+      - name: Start x11vnc server
         run: |
-          brew install --no-quarantine ngrok
-          mkdir -p ~/.ngrok2
-          echo "authtoken: ${{ secrets.NGROK_AUTH_TOKEN }}" > ~/.ngrok2/ngrok.yml
+          x11vnc -display :99 -nopw -forever &
 
-          echo "Starting ngrok..."
-          $(brew --prefix)/bin/ngrok tcp 5900 > ngrok.log 2>&1 &
+      - name: Launch Chrome with macOS user agent
+        run: |
+          export DISPLAY=:99
+          google-chrome --no-sandbox --user-agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 14_0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.5735.198 Safari/537.36" --window-size=1280,720 --start-maximized --disable-infobars https://www.google.com &
 
+      - name: Setup ngrok and tunnel VNC
+        run: |
+          curl -s https://ngrok-agent.s3.amazonaws.com/ngrok.asc | sudo tee /etc/apt/trusted.gpg.d/ngrok.asc >/dev/null
+          echo "deb https://ngrok-agent.s3.amazonaws.com buster main" | sudo tee /etc/apt/sources.list.d/ngrok.list
+          sudo apt update && sudo apt install ngrok
+          ngrok authtoken ${{ secrets.NGROK_AUTH_TOKEN }}
+          nohup ngrok tcp 5900 > ngrok.log 2>&1 &
           sleep 5
-          echo "Ngrok logs:"
-          tail -f ngrok.log
+          grep -o 'tcp://[0-9a-zA-Z.:]*' ngrok.log
 
-      - name: Launch Chrome in kiosk mode
-        run: |
-          open -a "Google Chrome" --args --kiosk https://www.google.com
-
-      - name: Keep runner alive (no-op)
+      - name: Keep alive
         run: tail -f /dev/null
+
 
